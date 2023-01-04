@@ -5,7 +5,7 @@
 #include "func.h"
 #include "parser.h"
 
-void main_ui(Screen *screen) {
+void main_ui(Screen *screen, const std::string& default_path) {
     UI ui(screen);
     Editor editor;
     Parser parser = get_cmd();
@@ -15,9 +15,15 @@ void main_ui(Screen *screen) {
     // 是否刷新屏幕的 flag
     bool refresh = true;
     if (cp != 932) {
+        system("chcp 932>nul");
         SetConsoleOutputCP(932);
         // logger.log_info(
         //    "Your code page is not UTAU-friendly. Switched to 932.\n");
+    }
+
+    if (!default_path.empty()) {
+        editor._in_utau = true;
+        editor.open(default_path);   
     }
     while (true) {
         if (refresh)
@@ -86,7 +92,7 @@ void main_ui(Screen *screen) {
     }
 }
 
-int main() {
+int main(int argc, char* argv[]) {
 #ifdef _WIN32
     HANDLE hStd = GetStdHandle(STD_OUTPUT_HANDLE);
     DWORD dwMode = 0;
@@ -168,7 +174,7 @@ int main() {
     //                 Goto the last page.\n" "  load>[file] - Load specified
     //                 file\n" "Any key to continue...");
     Screen screen(getsize());
-    main_ui(&screen);
+    main_ui(&screen, argc == 2 ? std::string(argv[1]) : std::string());
     // getch();
     // Editor edit;
     // edit.load(pj);

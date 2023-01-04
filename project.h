@@ -31,6 +31,8 @@ typedef struct Note {
     int Length;
     int Tempo;
 
+    bool sel;
+
     Note()
         : Velocity(100),
           Intensity(100),
@@ -38,7 +40,8 @@ typedef struct Note {
           StartPoint(0),
           NoteNum(0),
           Length(480),
-          Tempo(120) {}
+          Tempo(120),
+          sel(false) {}
 } Note;
 
 typedef struct Project {
@@ -125,6 +128,15 @@ typedef struct Project {
         return "#" + tmp;
     }
 } Project;
+
+typedef class TempProject : Project {
+
+} TempProject;
+
+
+
+
+
 /**
  * @brief 实用工具。用于 std::map 默认值。
  *

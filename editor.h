@@ -96,11 +96,11 @@ typedef struct UI {
      * @param dirty   是否绘制*
      */
     void render_bar(const Project &project, size_t page, size_t total,
-                    bool dirty, std::string colorRGB) {
+                    bool dirty, std::string colorRGB, bool _in_utau) {
         // 进行一些邪术的施展
         // 当前绘制的位置
         size_t x = 0;  // currentX
-        render_text(&x, 0, ColorText("uPET Editor:", "\x1b[38;2;" + colorRGB + "m"));
+        render_text(&x, 0, ColorText(_in_utau ? "uPET Plugin Mode" :"uPET@okmt_branch:", "\x1b[38;2;" + colorRGB + "m"));
         x += 1;
         render_text(
             &x, 0,
@@ -207,8 +207,8 @@ typedef struct UI {
 
         hi_base = lyric_base + (highlight ? "\x1b[30;47m" : "");
         // 序号
-        temp = std::to_string(count + 1);
-        render_text(&x, y, ColorText(temp, lyric_base));
+        temp = note.sel ? std::to_string(count + 1) + " (SEL)" : std::to_string(count + 1);
+        render_text(&x, y, ColorText(temp, note.sel ? "\x1b[32m" : lyric_base));
         x += (16 - temp.length()) + 1;  // 自适应，对照上方
         // 音高
         temp = show_act ? (get_key_name(note.NoteNum) + " (" +
@@ -326,7 +326,9 @@ typedef struct Editor {
     Project project;
     size_t count;
     size_t column;
-
+    bool _dirty;
+    bool _in_utau;
+    
     /**
      * @brief 加载指定的 Project 实例。
      *
@@ -459,6 +461,11 @@ typedef struct Editor {
             case '\b': {
                 // 删除当前音符
                 remove_note();
+                break;
+            }
+            case 'L':
+            case 'l': {
+                toggle_sel();
                 break;
             }
             case 'I':
@@ -632,7 +639,7 @@ typedef struct Editor {
         // page = (size_t)(count / (ui->size().y - 3));
         // 一定是正整数的情况下，就用 size_t 或者 unsigned int 吧。k
         ui->render_bar(project, (size_t)(count / (ui->size().y - 3)),
-                       page_count(ui), dirty(), colorRGB);
+                       page_count(ui), dirty(), colorRGB, _in_utau);
         size_t y;
         size_t i = (size_t)(count / (ui->size().y - 3)) *
                    (ui->size().y - 3);  // 是这样写吗？?
@@ -677,14 +684,21 @@ typedef struct Editor {
     /**
      * @brief 选择Note
      */
-
+    void toggle_sel() { 
+        project.notes[count].sel = !project.notes[count].sel; 
+    }
+    
+    void toggle_sel(size_t ct) { 
+        project.notes[ct].sel = !project.notes[ct].sel; 
+    }
 
     Editor()
         : count(0),
           column(0),
           _show_sec(1), _show_act(true),
           colorRGB("114;159;207"),
-          _dirty(false) {}
+          _dirty(false),
+          _in_utau(false) {}
 
    private:
     std::string _path;
@@ -694,7 +708,7 @@ typedef struct Editor {
     // 2: beats
     bool _show_act;
     std::string colorRGB;
-    bool _dirty;
+    
     /**
      * @brief 辅助函数——获得单元格内容
      *
@@ -770,6 +784,7 @@ typedef struct Editor {
             count++;
         }
     }
+
 } Editor;
 
 #endif  //_EDITOR_H

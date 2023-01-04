@@ -47,6 +47,19 @@ bool file_exist(const std::string &file) {
 }
 Parser get_cmd() {
     Parser p;
+
+    std::function<bool(std::string)> fileExistence =
+                [](const std::string &file) -> bool {
+                    struct stat buffer{};
+                    return (stat(file.c_str(), &buffer) == 0);
+                };
+
+    std::function<bool(std::string)> isNumber =
+    [](const std::string &x) -> bool {
+        return (std::all_of(x.cbegin(), x.cend(),
+                            [](const char c) -> bool { return std::isdigit(c);}) && !x.empty());
+    };
+
     p.set("q", [](const std::string &, UI *ui, Editor *editor) -> bool {
         if (editor->dirty()) {
             ui->render_log(
@@ -74,7 +87,7 @@ Parser get_cmd() {
         }
     });
 
-    p.set("save", [](const std::string &args, UI *ui, Editor *editor) -> bool {
+    p.set("save", [fileExistence](const std::string &args, UI *ui, Editor *editor) -> bool {
         std::string path;
         if (args.empty()) {
             path = editor->path();
@@ -83,30 +96,47 @@ Parser get_cmd() {
         if (path[0] == '\"' && path[path.length() - 1] == '\"') {
             path = path.substr(1, path.length() - 2);
         }
-        if (file_exist(path) && path != editor->path()) {
+
+        std::ofstream f;
+        
+        if (fileExistence(path) && path != editor->path()) {
             ui->render_log(
-                ColorText("File already exists. Overwrite? Yes: [Y] No: [N]", "\x1b[32m")
-                    .output());
+                    ColorText("File exists. Replace? Yes: [Y] No: [N]", "\x1b[32;40m")
+                            .output());
             ui->update();
             switch (_getch()) {
                 case 'y':
                 case 'Y': {
+                    f.open(path);
                     break;
                 }
-                default: {
+                case 'n':
+                case 'N': {
                     return true;
                 }
+                default:
+                    return true;
             }
+        } else {
+            f.open(path);
         }
-        if (!editor->save(path)) {
+
+        if (!f.is_open()) {
             ui->render_log(
-                ColorText("E: Error while opening file", "\x1b[31m").output());
+                    ColorText("E: Error while opening file.", "\x1b[31m")
+                            .output());
             ui->update();
             return false;
         }
-        ui->render_log(ColorText("File saved to " + path, "\x1b[32m").output());
+
+        f << editor->project.to_string();
+        f.close();
+        editor->_dirty = false;
+        ui->render_log(
+                ColorText("File saved to " + path + ".", "\x1b[32;40m")
+                        .output());
         ui->update();
-        return false;
+         return false;
     });
 
     p.set("play", [](const std::string &args, UI *ui, Editor *editor) -> bool {
@@ -200,7 +230,7 @@ Parser get_cmd() {
     });
     p.set("version", [](const std::string &, UI *ui, Editor *) -> bool {
         ui->render_log(
-            ColorText("uPET@ookamitai_branch ver1a by FurryR & ookamitai, 2023", "")
+            ColorText("uPET@okmt_branch ver1a by FurryR & ookamitai, 2023", "")
                 .output());
         ui->update();
         return false;
@@ -259,7 +289,7 @@ Parser get_cmd() {
                     editor->render(ui);
 
                     ui->render_log(
-                        ColorText("Matches: " + std::to_string(index + 1) + "/" + std::to_string(res_count.size()) +  + " Next: [Z] Prev: [X] Abort: [C]", "\x1b[32m").output());
+                        ColorText("Matches: " + std::to_string(index + 1) + "/" + std::to_string(res_count.size()) +  + " Next: [Z] Prev: [X] Abort: [C] (De)select: [L] (De)Select All: [V]", "\x1b[32m").output());
                     ui->update();
                     
                     switch(_getch()) {
@@ -278,6 +308,17 @@ Parser get_cmd() {
                         case 'c':
                         case 'C': {
                             return true;
+                        }
+                        case 'L':
+                        case 'l': {
+                            editor->toggle_sel();
+                            break;
+                        }
+                        case 'v':
+                        case 'V': {
+                            for (auto& s: res_count) {
+                                editor->toggle_sel(s);
+                            }
                         }
                     }
 
@@ -436,6 +477,12 @@ Parser get_cmd() {
                            
                     }
                 }
+                if (res_count.empty()) {
+                    ui->render_log(
+                        ColorText("No suitable matches found.", "\x1b[32m").output());
+                    ui->update();
+                    return false;
+                }
 
                 while (1) {
                     editor->count = res_count[index];
@@ -485,16 +532,13 @@ Parser get_cmd() {
         if (editor->dirty()) {
             ui->render_log(
                 ColorText(
-                    "Changes unsaved. Still quit? Yes: [Y] No: [N]",
+                    "Changes unsaved. Still load? Yes: [Y] No: [N]",
                     "\x1b[32m")
                     .output());
             ui->update();
             switch (_getch()) {
-                case 'Y':
-                case 'y': {
-                    ui->clear();
-                    ui->update();
-                    exit(0);
+                case 'y':
+                case 'Y': {
                     break;
                 }
                 default: {
@@ -523,22 +567,63 @@ Parser get_cmd() {
         return true;
     });
 
+    p.set("selall", [](const std::string &, UI *ui, Editor *editor) -> bool {
+        for (auto& nt: editor->project.notes) {
+            nt.sel = true;
+        }
+        return true;
+    });
+
+    p.set("desel", [](const std::string &, UI *ui, Editor *editor) -> bool {
+        for (auto& nt: editor->project.notes) {
+            nt.sel = false;
+        }
+        return true;
+    });
+
+    p.set("revsel", [](const std::string &, UI *ui, Editor *editor) -> bool {
+        for (auto& nt: editor->project.notes) {
+            nt.sel = !nt.sel;
+        }
+        return true;
+    });
+
     p.set("close", [](const std::string &, UI *ui, Editor *editor) -> bool {
         if (editor->dirty()) {
             ui->render_log(ColorText("Changes unsaved. Still close? Yes: [Y] No: [N]",
                                      "\x1b[32m")
                                .output());
             ui->update();
-        }
-
-        switch (_getch()) {
+            switch (_getch()) {
             case 'y':
             case 'Y': {
                 editor->project.notes.clear();
                 editor->load(Project());
                 break;
             }
+            } 
+        } else {
+            editor->project.notes.clear();
+            editor->load(Project());
         }
+
+        return true;
+    });
+
+    p.set("delsel", [](const std::string &, UI *, Editor *editor) -> bool {
+        editor->_dirty = true;
+        // y，同时在sel里面删除一次减1 O(n^2)但是我真的很想delete selection
+        // 也就是说我可以随便改本家？ ？是的
+        // y
+        std::vector<Note> tmp;
+        tmp.reserve(editor->project.notes.size());
+        for (auto&& element : editor->project.notes) {
+            //   ^ ??????????????????
+            // &&? auto&& 和 T&& 均属于万能引用，可以接受任意类型的引用，包括左右值和const 左值。不会导致任何拷贝。
+            if (!element.sel)
+                tmp.push_back(std::move(element)); // move
+        }
+        editor->project.notes = tmp; // 注意：vector.insert vector.erase 都是 O(N) 操作，很慢。// test flight
         return true;
     });
 
@@ -560,10 +645,89 @@ Parser get_cmd() {
                                    .output());
                 ui->update();
                 return false;
-                return false;
             }
         }
         editor->set_color(std::stoi(color_set[0]), std::stoi(color_set[1]), std::stoi(color_set[2]));
+        return true;
+    });
+
+    p.set("set", [isNumber](const std::string &args, UI *ui, Editor *editor) -> bool {
+
+        switch (editor->column) {
+            case 0: {
+                for (auto& nt: editor->project.notes) {
+                    if (nt.sel) {
+                        if (isNumber(args))
+                            nt.NoteNum = std::stoi(args);
+                        else 
+                            try {
+                                nt.NoteNum = get_note_num(args);
+                            } catch (...) {
+                                ui->render_log(ColorText("E: Value error",
+                                         "\x1b[31m")
+                                   .output());
+                                ui->update();
+                                return false;
+                            }
+                    }
+                    
+                }
+                break;
+            }
+
+            case 1: {
+                for (auto& nt: editor->project.notes) {
+                    if (nt.sel) {
+                    nt.Lyric = args;
+                }
+                }
+                break;
+            }
+
+            case 2: {
+                for (auto& nt: editor->project.notes) {
+                    if (nt.sel) {
+                        if (isNumber(args))
+                            nt.Length = std::stoi(args);
+                        else {
+                            ui->render_log(ColorText("E: Value error",
+                                         "\x1b[31m")
+                                   .output());
+                            ui->update();
+                            return false;
+                        }
+                    }
+                }
+                break;
+            }
+
+            case 3: {
+                for (auto& nt: editor->project.notes) {
+                    if (nt.sel) {
+                        if (isNumber(args))
+                            nt.Velocity = std::stoi(args);
+                        else {
+                            ui->render_log(ColorText("E: Value error",
+                                         "\x1b[31m")
+                                   .output());
+                            ui->update();
+                            return false;
+                        }
+                    }
+                }
+                break;
+            }
+
+            case 4: {
+                for (auto& nt: editor->project.notes) {
+                    if (nt.sel) {
+                        nt.Flags = args;
+                }
+                }
+                break;
+            }
+        }
+        editor->render(ui);
         return true;
     });
 
