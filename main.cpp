@@ -1,12 +1,9 @@
 #include <windows.h>
-
-#include <fstream>
 #include <iostream>
 
 #include "editor.h"
 #include "func.h"
 #include "parser.h"
-#include "project.h"
 
 void main_ui(Screen *screen) {
     UI ui(screen);
@@ -39,7 +36,7 @@ void main_ui(Screen *screen) {
         int g = _getch();
         if (g == ':') {
             // 命令系统
-            std::string tmp = "";
+            std::string tmp;
             size_t cursor = tmp.length();
             int key;
             // somewhat looks like a cursor

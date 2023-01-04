@@ -2,7 +2,6 @@
 #define _EDITOR_H
 
 #include <conio.h>
-
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -97,27 +96,27 @@ typedef struct UI {
      * @param dirty   是否绘制*
      */
     void render_bar(const Project &project, size_t page, size_t total,
-                    bool dirty) {
+                    bool dirty, std::string colorRGB) {
         // 进行一些邪术的施展
         // 当前绘制的位置
         size_t x = 0;  // currentX
-        render_text(&x, 0, ColorText("upet-tui", "\x1b[38;2;114;159;207m"));
+        render_text(&x, 0, ColorText("uPET Editor:", "\x1b[38;2;" + colorRGB + "m"));
         x += 1;
         render_text(
             &x, 0,
             ColorText(dirty ? project.project_name + "*" : project.project_name,
                       ""));
         x += 2;
-        render_text(&x, 0, ColorText("Tempo:", "\x1b[38;2;114;159;207m"));
+        render_text(&x, 0, ColorText("Tempo:", "\x1b[38;2;" + colorRGB + "m"));
         x += 1;
         render_text(&x, 0, ColorText(std::to_string(project.tempo), ""));
         x += 2;
         render_text(&x, 0,
-                    ColorText("Global Flags:", "\x1b[38;2;114;159;207m"));
+                    ColorText("Global Flags:", "\x1b[38;2;" + colorRGB + "m"));
         x += 1;
         render_text(&x, 0, ColorText(project.global_flags, ""));
         x += 2;
-        render_text(&x, 0, ColorText("Notes:", "\x1b[38;2;114;159;207m"));
+        render_text(&x, 0, ColorText("Notes:", "\x1b[38;2;" + colorRGB + "m"));
         x += 1;
         render_text(&x, 0, ColorText(std::to_string(project.notes.size()), ""));
         x = 0;
@@ -172,8 +171,8 @@ typedef struct UI {
      * @param highlight 是否高亮当前的行数。
      */
     void render_note(const Note &note, size_t count, size_t y, size_t column,
-                     double tempo, bool show_sec, bool show_act,
-                     bool highlight) {
+                     double tempo, unsigned int show_sec, bool show_act,
+                     bool highlight, std::string colorRGB) {
         // pos + page * (size().y - 3)
         // column 可能是 0 - 4，对应 NoteNum，Lyric 等
         // 0: NoteNum, 1: Lyric, 2: Length, 3: Velocity, 4: Flags
@@ -181,6 +180,24 @@ typedef struct UI {
         std::string lyric_base;
         std::string hi_base;
         std::string temp;
+
+        std::function<std::string(std::string)> truncate_zero =
+            [](const std::string& x) -> std::string {
+            std::string y(x.rbegin(), x.rend()), tmp, ret;
+            for (char & a : y) {
+                if (a == '0')
+                    a = 'd';
+                else
+                    break;
+            }
+            for (char& a : y) {
+                if (a != 'd')
+                    tmp += a;
+            }
+            ret.assign(tmp.rbegin(), tmp.rend());
+            return ret;
+        };
+
         // 当前绘制的位置
         size_t x = 0;  // currentX
         if (note.Lyric == "R") {
@@ -200,21 +217,27 @@ typedef struct UI {
                     ColorText(temp, (column == 0) ? hi_base : lyric_base));
         x += (16 - temp.length()) + 1;
         // 歌词(可能为空)
-        temp = note.Lyric.empty() ? " " : note.Lyric;
+        temp = note.Lyric.empty() ? "  " : note.Lyric;
         render_text(
             &x, y,
             ColorText(temp.length() >= 16 ? (temp.substr(0, 13) + "...") : temp,
                       lyric_base +
-                          (temp.length() >= 16 ? "\x1b[38;2;252;233;79m" : "") +
+                          (temp.length() >= 16 ? "\x1b[38;2;" + colorRGB + "m" : "") +
                           ((column == 1) ? hi_base : lyric_base)));
         x += (16 - (temp.length() >= 16 ? 16 : temp.length())) + 1;
         // 长度
-        temp = std::to_string(note.Length) +
-               (show_sec ? (" (" +
-                            std::to_string((note.Length / 480.0 / tempo * 60.0))
-                                .substr(0, 5) +
-                            "s)")
-                         : "");
+        if (show_sec == 0)
+            temp = std::to_string(note.Length);
+        else if (show_sec == 1)
+            temp = std::to_string(note.Length) +
+                   " (" + std::to_string((note.Length / 480.0 / tempo * 60.0))
+                                    .substr(0, 5) + "s)";
+        else if (show_sec == 2)
+            temp = std::to_string(note.Length) + " (" + (note.Length / 480.0 == (int)(note.Length / 480.0)
+                ? (std::to_string((int)(note.Length / 480)))
+                : (truncate_zero(std::to_string(round(note.Length / 480.0 * 1000.0) / 1000.0))))
+                + "b)";
+
         render_text(&x, y,
                     ColorText(temp, (column == 2) ? hi_base : lyric_base));
         x += (16 - temp.length()) + 1;
@@ -224,12 +247,12 @@ typedef struct UI {
                     ColorText(temp, (column == 3) ? hi_base : lyric_base));
         x += (16 - temp.length()) + 1;
         // flags(可能为空)
-        temp = note.Flags.empty() ? " " : note.Flags;
+        temp = note.Flags.empty() ? "  " : note.Flags;
         render_text(
             &x, y,
             ColorText(temp.length() >= 16 ? (temp.substr(0, 13) + "...") : temp,
                       lyric_base +
-                          (temp.length() >= 16 ? "\x1b[38;2;252;233;79m" : "") +
+                          (temp.length() >= 16 ? "\x1b[38;2;" + colorRGB + "m" : "") +
                           ((column == 4) ? hi_base : lyric_base)));
     }
 
@@ -290,7 +313,7 @@ std::vector<Character> text_cursor(const std::string &str, size_t index) {
     std::vector<Character> tmp;
     for (size_t i = 0; i < str.length(); i++) {
         if (i == index)
-            tmp.push_back(Character(str[i], "\x1b[38;5;247m\x1b[47m"));
+            tmp.push_back(Character(str[i], "\x1b[48;2;114;159;207m\x1b[47m"));
         else
             tmp.push_back(Character(str[i]));
     }
@@ -437,9 +460,9 @@ typedef struct Editor {
                 remove_note();
                 break;
             }
-            // case 'I':
-            // case 'i': {
-            case '\r': {
+            case 'I':
+            case 'i': {
+            // case '\r': {
                 // 编辑当前单元格
                 if (count < project.notes.size()) {
                     std::string tmp = note_str(project.notes[count], column);
@@ -447,7 +470,7 @@ typedef struct Editor {
                     int key;
                     // somewhat looks like a cursor
                     std::vector<Character> t =
-                        ColorText(" -> ", "\x1b[47m\x1b[30m").output();
+                        ColorText(" -> ", "\x1b[48;2;" + colorRGB + "m\x1b[30m").output();
                     t.push_back(Character(0));
                     std::vector<Character> cursor_tmp =
                         text_cursor(tmp, cursor);
@@ -460,7 +483,7 @@ typedef struct Editor {
                                 case 0: {
                                     // NoteNum 的修改
                                     try {
-                                        if (_show_actual_notenum) {
+                                        if (_show_act == 1) {
                                             size_t note = get_note_num(tmp);
                                             if (!note) throw nullptr;
                                             project.notes[count].NoteNum = note;
@@ -469,7 +492,7 @@ typedef struct Editor {
                                                 std::stoi(tmp);
                                     } catch (...) {
                                         t = ColorText(" -> ",
-                                                      "\x1b[47m\x1b[30m")
+                                                      "\x1b[48;2;" + colorRGB + "m\x1b[30m")
                                                 .output();
                                         t.push_back(Character(0));
                                         cursor_tmp =
@@ -495,7 +518,7 @@ typedef struct Editor {
                                             std::stoi(tmp);
                                     } catch (...) {
                                         t = ColorText(" -> ",
-                                                      "\x1b[47m\x1b[30m")
+                                                      "\x1b[48;2;" + colorRGB + "m\x1b[30m")
                                                 .output();
                                         t.push_back(Character(0));
                                         cursor_tmp =
@@ -516,7 +539,7 @@ typedef struct Editor {
                                             std::stoi(tmp);
                                     } catch (...) {
                                         t = ColorText(" -> ",
-                                                      "\x1b[47m\x1b[30m")
+                                                      "\x1b[48;2;" + colorRGB + "m\x1b[30m")
                                                 .output();
                                         t.push_back(Character(0));
                                         cursor_tmp =
@@ -562,7 +585,7 @@ typedef struct Editor {
                             tmp.insert(tmp.cbegin() + cursor, key);
                             cursor++;
                         }
-                        t = ColorText(" -> ", "\x1b[47m\x1b[30m").output();
+                        t = ColorText(" -> ", "\x1b[48;2;" + colorRGB + "m\x1b[30m").output();
                         t.push_back(Character(0));
                         cursor_tmp = text_cursor(tmp, cursor);
                         t.insert(t.cend(), cursor_tmp.cbegin(),
@@ -608,7 +631,7 @@ typedef struct Editor {
         // page = (size_t)(count / (ui->size().y - 3));
         // 一定是正整数的情况下，就用 size_t 或者 unsigned int 吧。k
         ui->render_bar(project, (size_t)(count / (ui->size().y - 3)),
-                       page_count(ui), dirty());
+                       page_count(ui), dirty(), colorRGB);
         size_t y;
         size_t i = (size_t)(count / (ui->size().y - 3)) *
                    (ui->size().y - 3);  // 是这样写吗？?
@@ -616,15 +639,15 @@ typedef struct Editor {
         for (y = 2; y < ui->size().y - 1 && i < project.notes.size();
              y++, i++) {
             ui->render_note(project.notes[i], i, y, column, project.tempo,
-                            _show_sec, _show_actual_notenum, i == count);
+                            _show_sec, _show_act, i == count, colorRGB);
         }
         std::vector<Character> t =
-            ColorText(" -> ", "\x1b[47m\x1b[30m").output();
+            ColorText(" -> ", "\x1b[48;2;" + colorRGB + "m\x1b[30m").output();
         t.push_back(Character(0));
         std::vector<Character> tmp =
             count < project.notes.size()
                 ? ColorText(note_str(project.notes[count], column), "").output()
-                : ColorText("n/a", "\x1b[31m").output();
+                : ColorText("n/a", "").output();
         t.insert(t.cend(), tmp.cbegin(), tmp.cend());
         ui->render_log(t);
         // done elegant complicated
@@ -636,18 +659,36 @@ typedef struct Editor {
      * @return false 文件未被更改
      */
     bool dirty() const noexcept { return _dirty; }
+
+    /**
+     * @brief 设置RGB
+     *
+     * @param R 红色
+     * @param G 绿色
+     * @param B 蓝色
+     */
+    void set_color(int R, int G, int B) {
+        if (R < 0 || R > 255 || G < 0 || G > 255 || B < 0 || B > 255)
+            colorRGB = "114;159;207";
+        else
+            colorRGB = std::to_string(R) + ";" + std::to_string(G) + ";" + std::to_string(B);
+    }
+
     Editor()
         : count(0),
           column(0),
-          _show_sec(true),
-          _show_actual_notenum(true),
+          _show_sec(1), _show_act(true),
+          colorRGB("114;159;207"),
           _dirty(false) {}
 
    private:
     std::string _path;
-    bool _show_sec;
-    bool _show_actual_notenum;
-    bool _edit_column;
+    unsigned int _show_sec;
+    // 0: nothing
+    // 1: real-life time
+    // 2: beats
+    bool _show_act;
+    std::string colorRGB;
     bool _dirty;
     /**
      * @brief 辅助函数——获得单元格内容
@@ -659,7 +700,7 @@ typedef struct Editor {
     std::string note_str(const Note &note, size_t column) const noexcept {
         switch (column) {
             case 0: {
-                if (_show_actual_notenum) return get_key_name(note.NoteNum);
+                if (_show_act == 1) return get_key_name(note.NoteNum);
                 return std::to_string(note.NoteNum);
             }
             case 1: {
@@ -685,14 +726,19 @@ typedef struct Editor {
     /**
      * @brief 切换 show_sec flag。
      */
-    void toggle_show_sec() noexcept { _show_sec = !_show_sec; }
+    void toggle_show_sec() noexcept {
+        if (_show_sec < 2)
+            _show_sec++;
+        else
+            _show_sec = 0;
+    }
 
     /**
      * @brief 切换 _show_actual_notenum
       flag。
      */
     void toggle_show_actual_notenum() noexcept {
-        _show_actual_notenum = !_show_actual_notenum;
+        _show_act = !_show_act;
     }
 
     void remove_note() {

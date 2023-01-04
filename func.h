@@ -51,7 +51,7 @@ Parser get_cmd() {
         if (editor->dirty()) {
             ui->render_log(
                 ColorText(
-                    "You have unsaved changes. Quit without saving? (y/n)",
+                    "Changes unsaved. Still quit? Yes: [Y] No: [N]",
                     "\x1b[32m")
                     .output());
             ui->update();
@@ -85,7 +85,7 @@ Parser get_cmd() {
         }
         if (file_exist(path) && path != editor->path()) {
             ui->render_log(
-                ColorText("File already exists. Overwrite? (y/n)", "\x1b[32m")
+                ColorText("File already exists. Overwrite? Yes: [Y] No: [N]", "\x1b[32m")
                     .output());
             ui->update();
             switch (_getch()) {
@@ -136,7 +136,7 @@ Parser get_cmd() {
             ui->render_log(ColorText("Playing " +
                                          std::to_string(editor->count + 1) +
                                          "/" + std::to_string(end) + " (" +
-                                         std::to_string(total) + "s) Abort [C]",
+                                         std::to_string(total) + "s) Abort: [C]",
                                      "\x1b[32;40m")
                                .output());
             ui->update();
@@ -150,7 +150,7 @@ Parser get_cmd() {
                 editor->count++;
             } else {
                 ui->render_log(
-                    ColorText("Playback finished. Press any key to continue...",
+                    ColorText("Playback finished. Proceed: [ANY]",
                               "\x1b[32m")
                         .output());
                 ui->update();
@@ -200,13 +200,13 @@ Parser get_cmd() {
     });
     p.set("version", [](const std::string &, UI *ui, Editor *) -> bool {
         ui->render_log(
-            ColorText("upet-tui ver1a by ookamitai & FurryR, 2023", "")
+            ColorText("uPET@ookamitai_branch ver1a by FurryR & ookamitai, 2023", "")
                 .output());
         ui->update();
         return false;
     });
     p.set("help", [](const std::string &, UI *ui, Editor *) -> bool {
-        ui->render_log(ColorText("see https://github.com/ookamitai/upet-gui "
+        ui->render_log(ColorText("see https://github.com/ookamitai/uPET "
                                  "for more information",
                                  "")
                            .output());
@@ -243,7 +243,7 @@ Parser get_cmd() {
         // null 老师怎么过来了 可以教你 想把威尔找来 知道 明天
         return true;
     });
-    p.set("open", [](const std::string &args, UI *ui, Editor *editor) -> bool {
+    p.set("load", [](const std::string &args, UI *ui, Editor *editor) -> bool {
         if (args.empty()) {
             // ui calling
             ui->render_log(
@@ -273,8 +273,7 @@ Parser get_cmd() {
 
     p.set("close", [](const std::string &, UI *ui, Editor *editor) -> bool {
         if (editor->dirty()) {
-            ui->render_log(ColorText("You have unsaved changes. Close without "
-                                     "saving? (y/n)",
+            ui->render_log(ColorText("Changes unsaved. Still close? Yes: [Y] No: [N]",
                                      "\x1b[32m")
                                .output());
             ui->update();
@@ -288,6 +287,20 @@ Parser get_cmd() {
                 break;
             }
         }
+        return true;
+    });
+
+    p.set("theme", [](const std::string &args, UI *ui, Editor *editor) -> bool {
+        auto color_set = splitBy(args, ' ');
+        if (color_set.size() != 3) return false;
+        for (auto& element: color_set) {
+            try {
+                std::stoi(element);
+            } catch (...) {
+                return false;
+            }
+        }
+        editor->set_color(std::stoi(color_set[0]), std::stoi(color_set[1]), std::stoi(color_set[2]));
         return true;
     });
 
