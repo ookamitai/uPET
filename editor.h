@@ -120,6 +120,7 @@ typedef struct UI {
         x += 1;
         render_text(&x, 0, ColorText(std::to_string(project.notes.size()), ""));
         x = 0;
+        
         // Line 2
         render_text(&x, 1, ColorText("Note", "\x1b[30;47m"));
         x += (16 - 4) + 1;
@@ -133,7 +134,7 @@ typedef struct UI {
         x += (16 - 8) + 1;
         render_text(&x, 1, ColorText("Flags", "\x1b[30;47m"));
         x += 1;
-        render_text(&x, 1, ColorText("Page:", ""));
+        render_text(&x, 1, ColorText("   Page:", ""));
         x += 1;
         render_text(
             &x, 1,
@@ -313,7 +314,7 @@ std::vector<Character> text_cursor(const std::string &str, size_t index) {
     std::vector<Character> tmp;
     for (size_t i = 0; i < str.length(); i++) {
         if (i == index)
-            tmp.push_back(Character(str[i], "\x1b[48;2;114;159;207m\x1b[47m"));
+            tmp.push_back(Character(str[i], "\x1b[30;47m"));
         else
             tmp.push_back(Character(str[i]));
     }
@@ -673,6 +674,10 @@ typedef struct Editor {
         else
             colorRGB = std::to_string(R) + ";" + std::to_string(G) + ";" + std::to_string(B);
     }
+    /**
+     * @brief 选择Note
+     */
+
 
     Editor()
         : count(0),

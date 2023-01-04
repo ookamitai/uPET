@@ -20,9 +20,7 @@ typedef struct Note {
     std::string PBM;
     std::string VBR;
     std::string Label;
-
     std::string Lyric;
-
     std::string PreUtterance;
 
     int Velocity;
@@ -53,7 +51,7 @@ typedef struct Project {
     std::string tool1;
     std::string tool2;
     std::string global_flags;
-
+    
     double tempo;
     bool mode2;
     /**
@@ -112,7 +110,7 @@ typedef struct Project {
         std::string raw = ini_encode(build());
         return "[#VERSION]\n" + version + "\n" + raw + "\n[#TRACKEND]\n";
     }
-    Project() : project_name("New Project"), tempo(120.0f), mode2(true) {}
+    Project() : notes({Note()}), project_name("New Project"), tempo(120.0f), mode2(true) {}
 
    private:
     /**

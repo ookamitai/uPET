@@ -84,8 +84,6 @@ void main_ui(Screen *screen) {
                 g);  // 好会写 没需求就删了，不留任何额外参数。（来自 Lightpad）
         }
     }
-    _getch();
-    // test?
 }
 
 int main() {

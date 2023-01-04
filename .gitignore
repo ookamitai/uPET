@@ -3,3 +3,7 @@ cmake-build-debug/
 .idea/
 a.exe
 main.exe
+.clang-format
+bomb.ust
+main.ust
+vocal.ust

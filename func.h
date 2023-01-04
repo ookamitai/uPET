@@ -216,33 +216,263 @@ Parser get_cmd() {
     p.set("find", [](const std::string &cmd, UI *ui, Editor *editor) -> bool {
         // 教我multi params
         std::vector<std::string> args = splitBy(cmd, ' ');
-        // arguments should be sent in this format:
-        // [REGEX]
-        // 先去洗澡再说
-        // 参数个数检查 父母回来了 哦我挂着吧 摸摸？
+        std::vector<int> res_count;
+        int index = 0;
+        // args format:
+        // for col=1, 4 [/REGEX/]
+        // for col=0, 2, 3 [< | <= | == | >= | >] [VALUE]
+        switch (editor->column) {
+            case 1:
+            case 4: {
+                if (args.size() != 1) {
+                    ui->render_log(
+                        ColorText("Usage: find [REGEX]", "\x1b[31m").output());
+                    ui->update();
+                    return false;
+                }
 
-        // 那我写replace好了 .. 我电脑没装git ;)
-        // 在指定 note 上按r null 劳斯来了真的
-        // #include <iostream> // 包含头文件，不用管
-        // using namespace std; // 不用管  // 来力，等我穿件衣服
-        // int main () {
-        //   cout << "Hello World" << endl;
-        //   // 语法 cout << "文字" << endl;
-        //   int a = 1; // Python: a: int = 1
-        //   // 省略类型：auto a = 1;
-        //   cin >> a; // a = int(input())
-        // }
+                if (editor->column == 1){
+                    for (int start = 0; start < editor->project.notes.size(); start++) {
+                        if (std::regex_match(editor->project.notes[start].Lyric, std::regex(args[0]))) {
+                           res_count.push_back(start);
+                        }
+                    }
+                }
 
-        // 我该怎么取得project 不知道 editor 吧 project 变 public 得了
-        // editor->project is a public member
-        // 那我先把Project变成pub咯 √
-        // 洗完澡就来 先挂着（？） [15min] // C&CPP 100% 0基础 妈呀 洗澡先()
-        // 我也 对了，你让威尔老师 评价一下这个作品 我OOP本当下手 //
-        // 我OOP本当下手 想要给note加match高亮，鸡巴，怎么越来越复杂了
-        // 什么，同时 match 多条？y
-        // null 老师怎么过来了 可以教你 想把威尔找来 知道 明天
+                if (editor->column == 4){
+                    for (int start = 0; start < editor->project.notes.size(); start++) {
+                        if (std::regex_match(editor->project.notes[start].Flags, std::regex(args[0]))) {
+                           res_count.push_back(start);
+                        }
+                    }
+                }
+
+                if (res_count.empty()) {
+                    ui->render_log(
+                        ColorText("No suitable matches found.", "\x1b[32m").output());
+                    ui->update();
+                    return false;
+                }
+                // GET MATCHED NOTES' ID
+                while (1) {
+                    editor->count = res_count[index];
+                    editor->render(ui);
+
+                    ui->render_log(
+                        ColorText("Matches: " + std::to_string(index + 1) + "/" + std::to_string(res_count.size()) +  + " Next: [Z] Prev: [X] Abort: [C]", "\x1b[32m").output());
+                    ui->update();
+                    
+                    switch(_getch()) {
+                        case 'z':
+                        case 'Z': {
+                            if (index < res_count.size() - 1)
+                                index++;
+                                break;
+                        }
+                        case 'x':
+                        case 'X': {
+                            if (index > 0)
+                                index--;
+                                break;
+                        }
+                        case 'c':
+                        case 'C': {
+                            return true;
+                        }
+                    }
+
+                }
+            
+            }
+
+            case 0:
+            case 2:
+            case 3: {
+                int value;
+                if (args.size() != 2 || 
+                    !(args[0] == "<" || args[0] == "<=" || args[0] == "==" || args[0] == ">=" || args[0] == ">")) {
+                    ui->render_log(
+                        ColorText("Usage: find [ < | <= | == | >= | > ] [VALUE]", "\x1b[31m").output());
+                    ui->update();
+                    return false;
+                }
+
+                try {
+                    value = std::stoi(args[1]);
+                } catch (...) {
+                    ui->render_log(
+                        ColorText("Usage: Value error", "\x1b[31m").output());
+                    ui->update();
+                    return false;
+                }
+
+                switch (editor->column) {
+                    case 0: {
+                        if (args[0] == "<") {
+                            for (int start; start < editor->project.notes.size(); start++) {
+                                if (editor->project.notes[start].NoteNum < value) {
+                                    res_count.push_back(start);
+                                }
+                            }
+                        }
+
+                        if (args[0] == "<=") {
+                            for (int start; start < editor->project.notes.size(); start++) {
+                                if (editor->project.notes[start].NoteNum <= value) {
+                                    res_count.push_back(start);
+                                }
+                            }
+                        }
+
+                        if (args[0] == "==") {
+                            for (int start; start < editor->project.notes.size(); start++) {
+                                if (editor->project.notes[start].NoteNum == value) {
+                                    res_count.push_back(start);
+                                }
+                            }
+                        }
+
+                        if (args[0] == ">=") {
+                            for (int start; start < editor->project.notes.size(); start++) {
+                                if (editor->project.notes[start].NoteNum >= value) {
+                                    res_count.push_back(start);
+                                }
+                            }
+                        }
+
+                        if (args[0] == ">") {
+                            for (int start; start < editor->project.notes.size(); start++) {
+                                if (editor->project.notes[start].NoteNum > value) {
+                                    res_count.push_back(start);
+                                }
+                            }
+                        }
+                           
+                    }
+
+                    case 3: {
+                        if (args[0] == "<") {
+                            for (int start; start < editor->project.notes.size(); start++) {
+                                if (editor->project.notes[start].Length < value) {
+                                    res_count.push_back(start);
+                                }
+                            }
+                        }
+
+                        if (args[0] == "<=") {
+                            for (int start; start < editor->project.notes.size(); start++) {
+                                if (editor->project.notes[start].Length <= value) {
+                                    res_count.push_back(start);
+                                }
+                            }
+                        }
+
+                        if (args[0] == "==") {
+                            for (int start; start < editor->project.notes.size(); start++) {
+                                if (editor->project.notes[start].Length == value) {
+                                    res_count.push_back(start);
+                                }
+                            }
+                        }
+
+                        if (args[0] == ">=") {
+                            for (int start; start < editor->project.notes.size(); start++) {
+                                if (editor->project.notes[start].Length >= value) {
+                                    res_count.push_back(start);
+                                }
+                            }
+                        }
+
+                        if (args[0] == ">") {
+                            for (int start; start < editor->project.notes.size(); start++) {
+                                if (editor->project.notes[start].Length > value) {
+                                    res_count.push_back(start);
+                                }
+                            }
+                        }
+                           
+                    }
+
+                    case 4: {
+                        if (args[0] == "<") {
+                            for (int start; start < editor->project.notes.size(); start++) {
+                                if (editor->project.notes[start].Velocity < value) {
+                                    res_count.push_back(start);
+                                }
+                            }
+                        }
+
+                        if (args[0] == "<=") {
+                            for (int start; start < editor->project.notes.size(); start++) {
+                                if (editor->project.notes[start].Velocity <= value) {
+                                    res_count.push_back(start);
+                                }
+                            }
+                        }
+
+                        if (args[0] == "==") {
+                            for (int start; start < editor->project.notes.size(); start++) {
+                                if (editor->project.notes[start].Velocity == value) {
+                                    res_count.push_back(start);
+                                }
+                            }
+                        }
+
+                        if (args[0] == ">=") {
+                            for (int start; start < editor->project.notes.size(); start++) {
+                                if (editor->project.notes[start].Velocity >= value) {
+                                    res_count.push_back(start);
+                                }
+                            }
+                        }
+
+                        if (args[0] == ">") {
+                            for (int start; start < editor->project.notes.size(); start++) {
+                                if (editor->project.notes[start].Length > value) {
+                                    res_count.push_back(start);
+                                }
+                            }
+                        }
+                           
+                    }
+                }
+
+                while (1) {
+                    editor->count = res_count[index];
+                    editor->render(ui);
+
+                    ui->render_log(
+                        ColorText("Matches: " + std::to_string(index + 1) + "/" + std::to_string(res_count.size()) +  + " Next: [Z] Prev: [X] Abort: [C]", "\x1b[32m").output());
+                    ui->update();
+                    
+                    switch(_getch()) {
+                        case 'z':
+                        case 'Z': {
+                            if (index < res_count.size() - 1)
+                                index++;
+                                break;
+                        }
+                        case 'x':
+                        case 'X': {
+                            if (index > 0)
+                                index--;
+                                break;
+                        }
+                        case 'c':
+                        case 'C': {
+                            return true;
+                        }
+                    }
+
+                }
+
+                
+            }
+        }
         return true;
     });
+
+
     p.set("load", [](const std::string &args, UI *ui, Editor *editor) -> bool {
         if (args.empty()) {
             // ui calling
@@ -251,6 +481,28 @@ Parser get_cmd() {
             ui->update();
             return false;
         }
+
+        if (editor->dirty()) {
+            ui->render_log(
+                ColorText(
+                    "Changes unsaved. Still quit? Yes: [Y] No: [N]",
+                    "\x1b[32m")
+                    .output());
+            ui->update();
+            switch (_getch()) {
+                case 'Y':
+                case 'y': {
+                    ui->clear();
+                    ui->update();
+                    exit(0);
+                    break;
+                }
+                default: {
+                    return true;
+                }
+            }
+        }
+
         std::string path = args;
         if (path[0] == '\"' && path[path.length() - 1] == '\"') {
             path = path.substr(1, path.length() - 2);
@@ -292,11 +544,22 @@ Parser get_cmd() {
 
     p.set("theme", [](const std::string &args, UI *ui, Editor *editor) -> bool {
         auto color_set = splitBy(args, ' ');
-        if (color_set.size() != 3) return false;
+        if (color_set.size() != 3) {
+            ui->render_log(ColorText("Usage: theme [R] [G] [B]",
+                                     "\x1b[31m")
+                               .output());
+            ui->update();
+            return false;
+        }
         for (auto& element: color_set) {
             try {
                 std::stoi(element);
             } catch (...) {
+                ui->render_log(ColorText("E: Value error",
+                                         "\x1b[31m")
+                                   .output());
+                ui->update();
+                return false;
                 return false;
             }
         }
