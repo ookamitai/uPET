@@ -348,7 +348,7 @@ typedef struct Editor {
      */
     bool open(const std::string &filename) {
         std::ifstream f(filename);
-        if (!f) return false;
+        if (!f.is_open()) return false;
         std::string raw = std::string(std::istreambuf_iterator<char>(f),
                                       std::istreambuf_iterator<char>());
         f.close();

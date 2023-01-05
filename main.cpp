@@ -26,8 +26,10 @@ void main_ui(Screen *screen, const std::string& default_path) {
         editor.open(default_path);   
     }
     while (true) {
-        if (refresh)
+        if (refresh) {
+            ui.clear();
             editor.render(&ui);
+        }
         else
             refresh = true;
         if ((!cp_flag) && cp != 932) {

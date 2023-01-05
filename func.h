@@ -89,10 +89,13 @@ Parser get_cmd() {
 
     p.set("save", [fileExistence](const std::string &args, UI *ui, Editor *editor) -> bool {
         std::string path;
+
+        path = args;
+
         if (args.empty()) {
             path = editor->path();
         }
-        path = args;
+
         if (path[0] == '\"' && path[path.length() - 1] == '\"') {
             path = path.substr(1, path.length() - 2);
         }
@@ -625,6 +628,79 @@ Parser get_cmd() {
         }
         editor->project.notes = tmp; // 注意：vector.insert vector.erase 都是 O(N) 操作，很慢。// test flight
         return true;
+    });
+
+    p.set("sel", [](const std::string &cmd, UI *ui, Editor *editor) -> bool {
+        auto args = splitBy(cmd, ' ');
+        if (args.size() == 1) {
+            int value1 = 0;
+            try {
+                value1 = std::stoi(args[0]);
+            } catch (...) {
+                ui->render_log(ColorText("E: Value error",
+                                     "\x1b[31m")
+                               .output());
+                ui->update();
+                return false;
+            }
+
+            if (value1 > editor->project.notes.size())
+                value1 = editor->project.notes.size();
+            if (value1 < 1) value1 = 1;
+
+            if (value1 > editor->count) {
+                for (; editor->count < value1; editor->count++) {
+                    editor->project.notes[editor->count].sel = true;
+                }
+            } else {
+                for (; editor->count > value1; editor->count--) {
+                    editor->project.notes[editor->count].sel = true;
+                }
+            }
+
+            return true;
+        } // splitBy avoid as possible
+
+        if (args.size() == 2) {
+            int value1 = 0;
+            int value2 = 0;
+
+            try {
+                value1 = std::stoi(args[0]);
+                value2 = std::stoi(args[1]);
+            } catch (...) {
+                ui->render_log(ColorText("E: Value error",
+                                     "\x1b[31m")
+                               .output());
+                ui->update();
+                return false;
+            }
+
+            if (value1 > editor->project.notes.size())
+                value1 = editor->project.notes.size();
+            if (value1 < 1) value1 = 1;
+            if (value2 > editor->project.notes.size())
+                value2 = editor->project.notes.size();
+            if (value2 < 1) value2 = 1;
+
+
+            if (value1 > value2) {
+                for (editor->count = value2; editor->count < value1; editor->count++) {
+                    editor->project.notes[editor->count].sel = true;
+                }
+            } else {
+                for (editor->count = value1; editor->count < value2; editor->count++) {
+                    editor->project.notes[editor->count].sel = true;
+                }
+            }
+
+            return true;
+        }
+        ui->render_log(ColorText("Usage: sel [BEGIN] [END] | [END]",
+                                "\x1b[31m")
+                        .output());
+        ui->update();
+        return false;
     });
 
     p.set("theme", [](const std::string &args, UI *ui, Editor *editor) -> bool {
