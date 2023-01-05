@@ -10,7 +10,7 @@
 
 #include <windows.h>
 
-namespace Beeper {
+namespace Audio {
 
 	HMIDIOUT outHandle;
 	unsigned long result;

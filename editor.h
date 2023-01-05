@@ -13,6 +13,7 @@
 #include "parser.h"
 #include "project.h"
 #include "screen.h"
+#include "audio.h"
 
 /**
  * @brief 通过 NoteNum 返回对应音符名称
@@ -100,7 +101,7 @@ typedef struct UI {
         // 进行一些邪术的施展
         // 当前绘制的位置
         size_t x = 0;  // currentX
-        render_text(&x, 0, ColorText(_in_utau ? "uPET Plugin Mode" :"uPET@okmt_branch:", "\x1b[38;2;" + colorRGB + "m"));
+        render_text(&x, 0, ColorText(_in_utau ? "uPET Plugin Mode:" :"uPET@okmt_branch:", "\x1b[38;2;" + colorRGB + "m"));
         x += 1;
         render_text(
             &x, 0,
@@ -182,23 +183,6 @@ typedef struct UI {
         std::string hi_base;
         std::string temp;
 
-        std::function<std::string(std::string)> truncate_zero =
-            [](const std::string& x) -> std::string {
-            std::string y(x.rbegin(), x.rend()), tmp, ret;
-            for (char & a : y) {
-                if (a == '0')
-                    a = 'd';
-                else
-                    break;
-            }
-            for (char& a : y) {
-                if (a != 'd')
-                    tmp += a;
-            }
-            ret.assign(tmp.rbegin(), tmp.rend());
-            return ret;
-        };
-
         // 当前绘制的位置
         size_t x = 0;  // currentX
         if (note.Lyric == "R") {
@@ -231,8 +215,7 @@ typedef struct UI {
             temp = std::to_string(note.Length);
         else if (show_sec == 1)
             temp = std::to_string(note.Length) +
-                   " (" + std::to_string((note.Length / 480.0 / tempo * 60.0))
-                                    .substr(0, 5) + "s)";
+                   " (" + truncate_zero(std::to_string((note.Length / 480.0 / tempo * 60.0))) + "s)";
         else if (show_sec == 2)
             temp = std::to_string(note.Length) + " (" + (note.Length / 480.0 == (int)(note.Length / 480.0)
                 ? (std::to_string((int)(note.Length / 480)))
@@ -301,6 +284,23 @@ typedef struct UI {
         }
     }
 
+    std::function<std::string(std::string)> truncate_zero =
+            [](const std::string& x) -> std::string {
+            std::string y(x.rbegin(), x.rend()), tmp, ret;
+            for (char & a : y) {
+                if (a == '0')
+                    a = 'd';
+                else
+                    break;
+            }
+            for (char& a : y) {
+                if (a != 'd')
+                    tmp += a;
+            }
+            ret.assign(tmp.rbegin(), tmp.rend());
+            return ret;
+        };
+
     Screen *screen;
 } UI;
 /**
@@ -328,6 +328,7 @@ typedef struct Editor {
     size_t column;
     bool _dirty;
     bool _in_utau;
+    bool _midi_ok;
     
     /**
      * @brief 加载指定的 Project 实例。
@@ -466,6 +467,20 @@ typedef struct Editor {
             case 'L':
             case 'l': {
                 toggle_sel();
+                break;
+            }
+            case 'p':
+            case 'P': {
+                play_note();
+                break;
+            }
+            case 'o':
+            case 'O': {
+                if (_midi_ok)
+                    Audio::play_midi_device(project.notes[count].Lyric,
+                                             project.notes[count].NoteNum, 
+                                             project.notes[count].Length, 
+                                             project.tempo);
                 break;
             }
             case 'I':
@@ -698,7 +713,8 @@ typedef struct Editor {
           _show_sec(1), _show_act(true),
           colorRGB("114;159;207"),
           _dirty(false),
-          _in_utau(false) {}
+          _in_utau(false),
+          _midi_ok(false) {}
 
    private:
     std::string _path;
@@ -750,6 +766,10 @@ typedef struct Editor {
             _show_sec++;
         else
             _show_sec = 0;
+    }
+    void play_note() {
+        if (project.notes[count].Lyric == "R" || project.notes[count].Lyric == "") return;
+        Audio::play_beep(Audio::to_freq(project.notes[count].NoteNum), 500);
     }
 
     /**

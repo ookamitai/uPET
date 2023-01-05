@@ -7,9 +7,12 @@
 #include <regex>
 #include <string>
 
+#include <windows.h>
+
 #include "awacorn/awacorn.h"
 #include "awacorn/promise.h"
 #include "command.h"
+#include "audio.h"
 
 /**
  * @brief 异步的 getch。
@@ -32,7 +35,7 @@ Awacorn::AsyncFn<Promise::Promise<int>> async_getch() {
                 }
             },
             std::chrono::milliseconds(
-                10));  // 创建一个检测输入的定期循环事件(10ms)。
+                100));  // 创建一个检测输入的定期循环事件(100ms)。
         // 定期检测大概间隔多少？越大的间隔会导致输入延迟越严重，但占用率越低；越小的间隔会让输入延迟更低，但占用率更高。
         return pm;  // this is awacorn rather strange attempt to understand
                     // 打算以后去找个电子厂混混日子
@@ -47,12 +50,29 @@ bool file_exist(const std::string &file) {
 }
 Parser get_cmd() {
     Parser p;
-
+    std::shared_ptr<size_t> penalty = std::make_shared<size_t>(5);
     std::function<bool(std::string)> fileExistence =
                 [](const std::string &file) -> bool {
                     struct stat buffer{};
                     return (stat(file.c_str(), &buffer) == 0);
                 };
+
+    std::function<std::string(std::string)> truncate_zero =
+            [](const std::string& x) -> std::string {
+            std::string y(x.rbegin(), x.rend()), tmp, ret;
+            for (char & a : y) {
+                if (a == '0')
+                    a = 'd';
+                else
+                    break;
+            }
+            for (char& a : y) {
+                if (a != 'd')
+                    tmp += a;
+            }
+            ret.assign(tmp.rbegin(), tmp.rend());
+            return ret;
+        };
 
     std::function<bool(std::string)> isNumber =
     [](const std::string &x) -> bool {
@@ -71,6 +91,7 @@ Parser get_cmd() {
             switch (_getch()) {
                 case 'Y':
                 case 'y': {
+                    Audio::close_midi_device();
                     ui->clear();
                     ui->update();
                     exit(0);
@@ -142,8 +163,16 @@ Parser get_cmd() {
          return false;
     });
 
-    p.set("play", [](const std::string &args, UI *ui, Editor *editor) -> bool {
+    p.set("play", [truncate_zero, penalty](const std::string &args, UI *ui, Editor *editor) -> bool {
         size_t end;
+        if (args.size() >= 2) {
+            if (args.substr(args.size() - 2, args.size()) == "ms") {
+                try {
+                    *penalty = std::stoi(args.substr(0, args.size() - 2));
+                    return true;
+                } catch(...) {return true;}
+            }
+        }
         try {
             end = std::stoi(args);
         } catch (...) {
@@ -162,24 +191,24 @@ Parser get_cmd() {
         Awacorn::EventLoop ev;  // 创建一个 EventLoop
         const Awacorn::Event *next = nullptr;
         std::function<void(Awacorn::EventLoop *, const Awacorn::Event *)>
-            play_fn = [ui, editor, end, &total, &next, &play_fn](
+            play_fn = [ui, editor, end, &total, &next, &play_fn, penalty, truncate_zero](
                           Awacorn::EventLoop *ev,
                           const Awacorn::Event *task) -> void {
             editor->render(ui);
             ui->render_log(ColorText("Playing " +
                                          std::to_string(editor->count + 1) +
                                          "/" + std::to_string(end) + " (" +
-                                         std::to_string(total) + "s) Abort: [C]",
-                                     "\x1b[32;40m")
+                                         truncate_zero(std::to_string(total)) + "s, " + std::to_string(*penalty) + "ms) Abort: [C]",
+                                     "\x1b[32m")
                                .output());
             ui->update();
             if (editor->count < end) {
+                std::chrono::nanoseconds tmp = std::chrono::nanoseconds((size_t)(editor->project.notes[editor->count].Length /
+                                 480.0 / editor->project.tempo * 60.0 * 1000000000));
+
                 next = ev->create(
                     play_fn,
-                    std::chrono::nanoseconds(
-                        (size_t)(editor->project.notes[editor->count].Length /
-                                 480.0 / editor->project.tempo * 60.0 *
-                                 1000000000)));
+                    tmp < std::chrono::milliseconds(*penalty) ? tmp : tmp - std::chrono::milliseconds(*penalty /* Penalty here*/ ));
                 editor->count++;
             } else {
                 ui->render_log(
@@ -227,10 +256,13 @@ Parser get_cmd() {
         //                editor->project.tempo * 60.0f * 1000000000.0f)));
         // }
         // 任意键还是按 q？
-        ev.start();  // 等待播放完成或者中断
+        timeBeginPeriod(1);
+        ev.start();
+        timeEndPeriod(1);  // 等待播放完成或者中断
         return true;
         // _getch();
     });
+
     p.set("version", [](const std::string &, UI *ui, Editor *) -> bool {
         ui->render_log(
             ColorText("uPET@okmt_branch ver1a by FurryR & ookamitai, 2023", "")
@@ -238,6 +270,7 @@ Parser get_cmd() {
         ui->update();
         return false;
     });
+
     p.set("help", [](const std::string &, UI *ui, Editor *) -> bool {
         ui->render_log(ColorText("see https://github.com/ookamitai/uPET "
                                  "for more information",
@@ -246,6 +279,7 @@ Parser get_cmd() {
         ui->update();
         return false;
     });
+
     p.set("find", [](const std::string &cmd, UI *ui, Editor *editor) -> bool {
         // 教我multi params
         std::vector<std::string> args = splitBy(cmd, ' ');
@@ -522,7 +556,6 @@ Parser get_cmd() {
         return true;
     });
 
-
     p.set("load", [](const std::string &args, UI *ui, Editor *editor) -> bool {
         if (args.empty()) {
             // ui calling
@@ -727,6 +760,23 @@ Parser get_cmd() {
         return true;
     });
 
+    p.set("exmidiplay", [](const std::string &args, UI *ui, Editor *editor) -> bool {
+        if (!editor->_midi_ok) {
+            ui->render_log(ColorText("E: Unable to init midi device", "\x1b[31m").output());
+            ui->update();
+            return false;
+        }
+
+        for (auto&& nt: editor->project.notes) {
+                Audio::play_midi_device(nt.Lyric,
+                                         nt.NoteNum, 
+                                         nt.Length, 
+                                         editor->project.tempo,
+                                         true);
+        }
+        return true;
+    });
+
     p.set("set", [isNumber](const std::string &args, UI *ui, Editor *editor) -> bool {
 
         switch (editor->column) {
@@ -812,6 +862,7 @@ Parser get_cmd() {
         ui->update();
         return false;
     });
+
     return p;
 }
 

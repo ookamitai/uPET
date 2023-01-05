@@ -4,12 +4,21 @@
 #include "editor.h"
 #include "func.h"
 #include "parser.h"
+#include "audio.h"
 
 void main_ui(Screen *screen, const std::string& default_path) {
     UI ui(screen);
     Editor editor;
     Parser parser = get_cmd();
     UINT cp = GetConsoleOutputCP();
+    if (Beeper::init_midi_device() == -1) {
+        editor._midi_ok = false;
+        ui.render_log(ColorText("E: Unable to init midi device", "\x1b[32").output());
+        ui.update();
+        _getch();
+    } else {
+        editor._midi_ok = true;
+    }
     // 开头提示
     bool cp_flag = false;
     // 是否刷新屏幕的 flag
@@ -56,6 +65,8 @@ void main_ui(Screen *screen, const std::string& default_path) {
             while ((key = getch())) {
                 if (key == '\r') {
                     refresh = parser.execute(tmp, &ui, &editor);
+                    break;
+                } else if (key == '\t') {
                     break;
                 } else if (key == '\x1b') {
                     break;
@@ -176,6 +187,7 @@ int main(int argc, char* argv[]) {
     //                 Goto the last page.\n" "  load>[file] - Load specified
     //                 file\n" "Any key to continue...");
     Screen screen(getsize());
+    system(argc == 2 ? "title uPET Plugin Mode>nul" : "title uPET@okmt_branch>nul");
     main_ui(&screen, argc == 2 ? std::string(argv[1]) : std::string());
     // getch();
     // Editor edit;
