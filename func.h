@@ -43,11 +43,13 @@ Awacorn::AsyncFn<Promise::Promise<int>> async_getch() {
         // 这个蛮简单的，想学也可以学会！(我可以教你)*objection.wav*
     };
 }
+
 bool file_exist(const std::string &file) {
     struct stat buffer {};
     return (stat(file.c_str(), &buffer) ==
             0);  // I'm sorry for this strange solution
 }
+
 Parser get_cmd() {
     Parser p;
     std::shared_ptr<size_t> penalty = std::make_shared<size_t>(5);
@@ -91,7 +93,7 @@ Parser get_cmd() {
             switch (_getch()) {
                 case 'Y':
                 case 'y': {
-                    Audio::close_midi_device();
+                    Audio::CloseMidiDevice();
                     ui->clear();
                     ui->update();
                     exit(0);
@@ -181,7 +183,7 @@ Parser get_cmd() {
         }
         // 缩小 tmp 的生命周期(尽可能地)
         if (end >= editor->project.notes.size())
-            end = editor->project.notes.size();
+            end = editor->project.notes.size() - 1;
 
         double total = 0;
         for (size_t tmp = editor->count; tmp < end; tmp++) {
@@ -197,7 +199,7 @@ Parser get_cmd() {
             editor->render(ui);
             ui->render_log(ColorText("Playing " +
                                          std::to_string(editor->count + 1) +
-                                         "/" + std::to_string(end) + " (" +
+                                         "/" + std::to_string(end + 1) + " (" +
                                          truncate_zero(std::to_string(total)) + "s, " + std::to_string(*penalty) + "ms) Abort: [C]",
                                      "\x1b[32m")
                                .output());
@@ -238,24 +240,8 @@ Parser get_cmd() {
             std::chrono::nanoseconds(0));  // 创建第一个歌词的任务，立即执行
         ev.run(async_getch())
             .then<void>(
-                getch_fn);  // 我傻了 我裂开 // 这是异步啊，当然难了 //
-                            // 很难帮上忙…… ok test start compiling 一遍过
-        // for (; editor->count < end; editor->count++) {
-        //   editor->render(ui);
-        //   ui->render_log(ColorText("Playing " + std::to_string(editor->count
-        //   + 1)
-        //   +
-        //                                "/" + std::to_string(end) + " (" +
-        //                                std::to_string(total) + "s)",
-        //                            "\x1b[32;40m")
-        //                      .output());
-        //   ui->update();
-        //   std::this_thread::sleep_for(std::chrono::nanoseconds(
-        //       (size_t)((float)editor->project.notes[editor->count].Length /
-        //       480.0f /
-        //                editor->project.tempo * 60.0f * 1000000000.0f)));
-        // }
-        // 任意键还是按 q？
+                getch_fn);
+
         timeBeginPeriod(1);
         ev.start();
         timeEndPeriod(1);  // 等待播放完成或者中断
@@ -760,23 +746,84 @@ Parser get_cmd() {
         return true;
     });
 
-    p.set("exmidiplay", [](const std::string &args, UI *ui, Editor *editor) -> bool {
+    p.set("playmidi", [isNumber](const std::string &args, UI *ui, Editor *editor) -> bool {
+
         if (!editor->_midi_ok) {
-            ui->render_log(ColorText("E: Unable to init midi device", "\x1b[31m").output());
+            ui->render_log(ColorText("E: Midi device not configured", "\x1b[31m").output());
             ui->update();
             return false;
         }
+        
+        int end = editor->project.notes.size() - 1;
 
-        for (auto&& nt: editor->project.notes) {
-                Audio::play_midi_device(nt.Lyric,
-                                         nt.NoteNum, 
-                                         nt.Length, 
-                                         editor->project.tempo,
-                                         true);
+        if(isNumber(args)) {
+            end = std::stoi(args);
         }
+        
+        Awacorn::EventLoop ev;
+        const Awacorn::Event* next = nullptr;
+        Promise::Promise<void> next_pm;
+        std::function<void()> play_fn = [ui, editor, end, &next, &play_fn, &next_pm, &ev]() -> void {
+            ui->clear();
+            editor->render(ui);
+            std::stringstream _begin;
+            _begin.str("");
+            unsigned int begin_int, end_int;
+            _begin << std::hex << editor->project.notes[editor->count].NoteNum;  // int decimal_value
+        
+            ui->render_log(
+                    ColorText("Sent midi signal: 0x0070" + _begin.str() + (Audio::channel0 ? "90" : "91") + " " +
+                                std::to_string(editor->count + 1) + "/" + std::to_string(end + 1) + " Abort: [C]", "\x1b[32m")
+                        .output());
+                ui->update();
+            if (editor->count < end) {
+                std::chrono::nanoseconds tmp = std::chrono::nanoseconds(
+                        (size_t)(editor->project.notes[editor->count].Length /
+                                 480.0 / editor->project.tempo * 60.0 *
+                                 1000000000));
+                std::pair<const Awacorn::Event *, Promise::Promise<void>>
+                        ret = ev.run(Audio::play_note(
+                            editor->project.notes[editor->count].Lyric,
+                            editor->project.notes[editor->count].NoteNum,
+                            tmp < std::chrono::milliseconds(1)
+                                ? tmp
+                                : tmp - std::chrono::milliseconds(1)
+                        ));
+                next = ret.first;
+                Promise::Promise<void> pm;
+                next_pm = ret.second.then<void>(play_fn);
+                editor->count++;
+            } else {
+                if (editor->count > 0) editor->count--;
+                ui->render_log(
+                        ColorText(
+                            "Playback finished. Press any key to continue...",
+                            "\x1b[32m")
+                            .output());
+                ui->update();
+                next = nullptr;
+            }
+        };
+        std::function<Promise::Promise<void>(int)> getch_fn = 
+        [&ev, &next, &getch_fn, &next_pm, &editor](int result) {
+            if (result == 'c' || result == 'C' || (!next)) {
+                Audio::MidiPanic();
+                if (next) ev.clear(next);
+                next_pm.reject(std::exception());
+                return Promise::resolve<void>();
+            }
+            return ev.run(async_getch()).then<void>(getch_fn);
+        };
+        next = ev.create([play_fn](Awacorn::EventLoop *, const Awacorn::Event*) -> void {
+            play_fn();
+        }, std::chrono::nanoseconds(0));
+        ev.run(async_getch()).then<void>(getch_fn);
+        timeBeginPeriod(1);
+        ev.start();
+        timeEndPeriod(1);
         return true;
     });
-
+        
     p.set("set", [isNumber](const std::string &args, UI *ui, Editor *editor) -> bool {
 
         switch (editor->column) {

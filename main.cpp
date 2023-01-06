@@ -2,18 +2,18 @@
 #include <iostream>
 
 #include "editor.h"
+#include "audio.h"
 #include "func.h"
 #include "parser.h"
-#include "audio.h"
 
 void main_ui(Screen *screen, const std::string& default_path) {
     UI ui(screen);
     Editor editor;
     Parser parser = get_cmd();
     UINT cp = GetConsoleOutputCP();
-    if (Beeper::init_midi_device() == -1) {
+    if (!Audio::InitMidiDevice()) {
         editor._midi_ok = false;
-        ui.render_log(ColorText("E: Unable to init midi device", "\x1b[32").output());
+        ui.render_log(ColorText("E: Unable to init midi device", "\x1b[31m").output());
         ui.update();
         _getch();
     } else {
@@ -71,7 +71,7 @@ void main_ui(Screen *screen, const std::string& default_path) {
                 } else if (key == '\x1b') {
                     break;
                 } else if (key == '\b') {
-                    if (tmp.length() > 0) {
+                    if (cursor > 0) {
                         tmp = tmp.substr(0, cursor - 1) + tmp.substr(cursor);
                         cursor--;
                     }
@@ -113,87 +113,9 @@ int main(int argc, char* argv[]) {
     dwMode |= 0x4;
     SetConsoleMode(hStd, dwMode);
 #endif
-    // use \x1b or \x1b instead of SetConsoleTextAttribute
-    // For example: \x1b[45m
-    // HWND console = GetConsoleWindow();
-    // RECT r;
-    // GetWindowRect(console, &r);
-    // MoveWindow(console, r.left, r.top, 800, 600, TRUE);
-
-    // Logger logger;
-
-    // std::cout << "uPET ver0.1b1 - UTAU Project Editing Tool\n";
-    // std::cout
-    //     << "Copyright ookamitai, FurryR, 2022-2023. All rights
-    //     reserved.\n\n";
-
-    // std::string filename = "main.ust";
-    // std::ifstream f(filename);
-
-    // UINT cp = GetACP();
-    // logger.log_info("Code page: " + std::to_string(cp) + "\n");
-    // if (cp != 932) {
-    //  SetConsoleOutputCP(932);
-    // logger.log_info(
-    //    "Your code page is not UTAU-friendly. Switched to 932.\n");
-    // }
-    // // 从这里开始不再允许使用 logger。
-
-    // logger.log_info("Looking for main.ust...\n");
-
-    // while (!f.is_open()) {
-    //     logger.log_error("File could not be read.\n");
-    //     logger.log_prompt("Enter new file path:");
-    //     std::getline(std::cin, filename);
-    //     if (filename.substr(0, 1) == "\"" &&
-    //         filename.substr(filename.size() - 1, 1) == "\"") {
-    //         filename = filename.substr(1, filename.size() - 2);
-    //         logger.log_info("Recognized file path as: " + filename + "\n");
-    //     }
-    //     f.open(filename);
-    // }
-
-    // logger.log_info("Found file.\n");
-    // std::string raw = std::string(std::istreambuf_iterator<char>(f),
-    //                               std::istreambuf_iterator<char>());
-    // INI_Object ini = ini_decode(raw);
-    // logger.log_info("UST file parsed, ini file key count: " +
-    //                 std::to_string(ini.size()) + "\n");
-    // // ini 里面是数据
-
-    // logger.log_info("Converting to project...\n");
-    // logger.log_info("Thanks to FurryR's BlazinglyFast(R) code for making this
-    // "
-    //                 "part faster!\n");
-    // Project pj = parse(ini);
-    // // save to same file
-    // f.close();
-    // logger.log_info("File closed.\n");
-
-    // // Project pj = parse(ini);
-    // logger.log_info("Conversion finished, notes in project: " +
-    //                 std::to_string(pj.notes.size()) + "\n");
-    // ini.clear();
-    // logger.log_info("ini object cleared.\n");
-    // logger.log_info("Loaded: " + pj.project_name + "\n");
-
-    // logger.log_info("Loading Editor...\n");
-    // logger.log_info("Commands:\n"
-    //                 "  next(n) - Goto next page.\n"
-    //                 "  prev(p) - Goto previous page.\n"
-    //                 "  goto(g)>[index | page] - Goto specified note or page
-    //                 by " "either using numbers or format as 'p3'\n" "
-    //                 firstpage(fp) - Goto the first page.\n" "  lastpage(lp) -
-    //                 Goto the last page.\n" "  load>[file] - Load specified
-    //                 file\n" "Any key to continue...");
     Screen screen(getsize());
+    Audio::SetDeviceWizard(&screen);
     system(argc == 2 ? "title uPET Plugin Mode>nul" : "title uPET@okmt_branch>nul");
     main_ui(&screen, argc == 2 ? std::string(argv[1]) : std::string());
-    // getch();
-    // Editor edit;
-    // edit.load(pj);
-    // edit.revoker();
-
-    // system("pause>nul");
     return 0;
 }
