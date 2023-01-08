@@ -150,47 +150,18 @@ namespace Audio {
 
 		device_list.emplace_back("(None)");
 
-		while (1) {
-			ui.render(ColorText("SetDeviceWizard has found multiple MIDI OUT devices: ", ""), device_list, ColorText("Please specify an output device. Quit: [C | ESC]", ""), selected);
-			ui.update();
-			int g = _getch();
-			if (g == 224) {
-				switch (_getch()) {
-					case 72: {
-						if (selected > 0) {
-							selected--;
-						} else {
-							selected = device_list.size() - 1;
-						}
-						break;
-					}
-
-					case 80: {
-						if (selected < device_list.size() - 1) {
-							selected++;
-						} else {
-							selected = 0;
-						}
-						break;
-					}
-				}
-			} else if (g == '\r') {
-				if (selected == 0) {
-					device = -1;
-				} else if (selected == device_list.size() - 1) {
-                    // do not use...
-					device = -2;
-				} else {
-					device = selected - 1;
-				} 
-				
-				break;
-			} else if (g == 'c' || g == 'C' || g == '\x1b') {
-				exit(0);
-			}
+		device = ui.render_choice(ColorText("SetDeviceWizard has found multiple MIDI OUT devices: ", ""), 
+								  ColorText("  Please select a device. After selecting, a test midi signal lasting 1 second will be sent.", ""), 
+								  device_list, ColorText("Please specify an output device. Quit: [C | ESC]", ""));
+		if (device == INT32_MIN) {
+			exit(0);
+		} else if (device == 0) {
+			device = -1;
+		} else if (device == device_list.size() - 1) {
+			device = -2;
+		} else {
+			device = device - 1;
 		}
-	}
-
 }
-
+}
 #endif

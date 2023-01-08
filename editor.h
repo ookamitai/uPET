@@ -129,6 +129,8 @@ typedef struct Editor {
                 }
                 break;
             }
+
+
             case 'T':
             case 't': {
                 // 显示tick转换为的时长

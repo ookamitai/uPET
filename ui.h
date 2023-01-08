@@ -291,6 +291,7 @@ typedef struct UI {
 
     Screen *screen;
 } UI;
+
 typedef struct SelectUI {
     /**
      * @brief 更新画面。
@@ -315,16 +316,55 @@ typedef struct SelectUI {
      * @param _select_list 
      */
 
-    void render(const ColorText& _title, const std::vector<std::string>& _select_list, const ColorText& _prompt, size_t _sel) {
-        size_t x = 0, y = 0;
-        render_text(&x, y, _title);
-        for (size_t i = 0; i < _select_list.size(); i++) {
-                x = 0;
-                render_text(&x, ++y, ColorText(std::to_string(i) + ": " + _select_list[i] , _sel == i ? "\x1b[32m" : ""));
-            }
+   long long int render_choice(const ColorText& _title, const ColorText& msg, const std::vector<std::string>& _select_list, const ColorText& _prompt) {
+        size_t x = 0, y = 0, sel = 0;
+        std::string bars = "  " + _title.content;
+        for (int a = 0; a < size().x - _title.content.size(); a++) {
+            bars += " ";
+        }
+        while (1) {
+            x = 0, y = 0; 
+            clear();
+            render_text(&x, y, ColorText(bars, "\x1b[30;47m"));
+            y += 2;
             x = 0;
-        render_text(&x, size().y - 1, _prompt);
+            render_text(&x, y, msg);
+            y++;
+            for (size_t i = 0; i < _select_list.size(); i++) {
+                    x = 0;
+                    render_text(&x, ++y, ColorText((sel == i ? "->" + std::to_string(i) : "  " + std::to_string(i)) + ": " + _select_list[i] , sel == i ? "\x1b[30;47m" : ""));
+                }
+            x = 0;
+            render_text(&x, size().y - 1, _prompt);
+            update();
+            int g = _getch();
+            if (g == 224) {
+                switch (_getch()) {
+                    case 72: {
+						if (sel > 0) {
+							sel--;
+						} else {
+							sel = _select_list.size() - 1;
+						}
+						break;
+					}
+
+					case 80: {
+						if (sel < _select_list.size() - 1) {
+							sel++;
+						} else {
+							sel = 0;
+						}
+						break;
+					}
+                }
+            } else if (g == '\r'){
+                return sel;
+            } else if (g == 'c' || g == 'C' || g == '\x1b') {
+                return INT32_MIN;
+        }
     }
+   }
     explicit SelectUI(Screen *screen) : screen(screen) {}
 private:
     

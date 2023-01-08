@@ -13,10 +13,11 @@ void main_ui(Screen *screen, const std::string& default_path) {
     UINT cp = GetConsoleOutputCP();
     if (!Audio::InitMidiDevice()) {
         editor._midi_ok = false;
-        ui.render_log(ColorText("E: Unable to init midi device", "\x1b[31m").output());
+        ui.render_log(ColorText("Unable to init midi device", "\x1b[31m").output());
         ui.update();
         _getch();
     } else {
+        Audio::MidiDeviceHelper("a", 48, 1000000000);
         editor._midi_ok = true;
     }
     // 开头提示
@@ -114,8 +115,8 @@ int main(int argc, char* argv[]) {
     SetConsoleMode(hStd, dwMode);
 #endif
     Screen screen(getsize());
-    Audio::SetDeviceWizard(&screen);
     system(argc == 2 ? "title uPET Plugin Mode>nul" : "title uPET@okmt_branch>nul");
+    Audio::SetDeviceWizard(&screen);
     main_ui(&screen, argc == 2 ? std::string(argv[1]) : std::string());
     return 0;
 }
