@@ -3,7 +3,7 @@
 
 #include <conio.h>
 #include <sys/stat.h>
-
+#include <dirent.h>
 #include <regex>
 #include <string>
 
@@ -48,6 +48,13 @@ bool file_exist(const std::string &file) {
     struct stat buffer {};
     return (stat(file.c_str(), &buffer) ==
             0);  // I'm sorry for this strange solution
+}
+
+std::string get_current_dir() {
+   char buff[FILENAME_MAX]; //create string buffer to hold path
+   _getcwd( buff, FILENAME_MAX );
+   std::string current_working_dir(buff);
+   return current_working_dir;
 }
 
 Parser get_cmd() {
@@ -543,12 +550,29 @@ Parser get_cmd() {
     });
 
     p.set("load", [](const std::string &args, UI *ui, Editor *editor) -> bool {
+        std::string path = args;
+        std::vector<std::string> list;
+        DIR *dir;
+        struct dirent *ent;
+        if ((dir = opendir (get_current_dir().c_str())) != NULL) {
+            while ((ent = readdir (dir)) != NULL) {
+                if (file_exist(std::string(ent->d_name)) && std::string(ent->d_name) != std::string(".") && std::string(ent->d_name) != std::string("..")) {
+                    list.emplace_back(ent->d_name);
+                }
+            }
+            closedir (dir);
+        }
         if (args.empty()) {
             // ui calling
-            ui->render_log(
-                ColorText("Usage: load [FILE]", "\x1b[31m").output());
-            ui->update();
-            return false;
+            SelectUI selui(ui->sub_ui<SelectUI>());
+            long long int x = selui.render_choice(ColorText("In function load: ", ""), 
+								ColorText("As no parameter is passed in, file select UI is automatically opened.", ""), 
+								list, ColorText("Please specify a file name. Quit: [ESC]", ""));
+            if (x == INT32_MIN) {
+                return true;
+            }
+
+            path = list[x];
         }
 
         if (editor->dirty()) {
@@ -569,7 +593,6 @@ Parser get_cmd() {
             }
         }
 
-        std::string path = args;
         if (path[0] == '\"' && path[path.length() - 1] == '\"') {
             path = path.substr(1, path.length() - 2);
         }

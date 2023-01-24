@@ -13,7 +13,7 @@ void main_ui(Screen *screen, const std::string& default_path) {
     UINT cp = GetConsoleOutputCP();
     if (!Audio::InitMidiDevice()) {
         editor._midi_ok = false;
-        ui.render_log(ColorText("Unable to init midi device", "\x1b[31m").output());
+        ui.render_log(ColorText("E: Unable to init midi device", "\x1b[31m").output());
         ui.update();
         _getch();
     } else {

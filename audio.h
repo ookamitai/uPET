@@ -55,12 +55,12 @@ namespace Audio {
 			std::this_thread::sleep_for(std::chrono::nanoseconds(duration_ns));
 			return;
 		}
-		std::stringstream _begin;
+		std::stringstream _b;
 		unsigned int begin_int, end_int;
-		_begin << std::hex << note_num; // int decimal_value
+		_b << std::hex << note_num; // int decimal_value
 		try {
-		begin_int = std::stoul("0x0070" + _begin.str() + (channel0 ? "90" : "91"), nullptr, 16);
-		end_int = std::stoul("0x0000" + _begin.str() + (channel0 ? "90" : "91"), nullptr, 16);
+		begin_int = std::stoul("0x0070" + _b.str() + (channel0 ? "90" : "91"), nullptr, 16);
+		end_int = std::stoul("0x0000" + _b.str() + (channel0 ? "90" : "91"), nullptr, 16);
 		} catch(...) {}
 		midiOutShortMsg(outHandle, begin_int);
 		std::this_thread::sleep_for(std::chrono::nanoseconds(duration_ns));
@@ -151,8 +151,8 @@ namespace Audio {
 		device_list.emplace_back("(None)");
 
 		device = ui.render_choice(ColorText("SetDeviceWizard has found multiple MIDI OUT devices: ", ""), 
-								  ColorText("  Please select a device. After selecting, a test midi signal lasting 1 second will be sent.", ""), 
-								  device_list, ColorText("Please specify an output device. Quit: [C | ESC]", ""));
+								  ColorText("Please select a device. After selecting, a test midi signal lasting 1 second will be sent.", ""), 
+								  device_list, ColorText("Please specify an output device. Quit: [ESC]", ""));
 		if (device == INT32_MIN) {
 			exit(0);
 		} else if (device == 0) {
