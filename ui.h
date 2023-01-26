@@ -316,24 +316,73 @@ typedef struct SelectUI {
      * @param _select_list 
      */
 
-   long long int render_choice(const ColorText& _title, const ColorText& msg, const std::vector<std::string>& _select_list, const ColorText& _prompt) {
+    std::string to_lowercase(std::string data) {
+        std::transform(data.begin(), data.end(), data.begin(), [](char c){ return std::tolower(c); });
+        return data;
+    }
+
+    long long int render_choice(const ColorText& _title, const ColorText& msg, const std::vector<std::string>& _select_list, const ColorText& _prompt, bool _show_num=false) {
         size_t x = 0, y = 0, sel = 0;
-        std::string bars = "  " + _title.content;
+        bool arrow = true, set = false;
+        std::string bars = "  " + _title.content, tmp;
+        std::vector<std::string> newl = _select_list;
         for (int a = 0; a < size().x - _title.content.size(); a++) {
             bars += " ";
         }
         while (1) {
+            set = false;
+            newl = _select_list;
             x = 0, y = 0; 
             clear();
             render_text(&x, y, ColorText(bars, "\x1b[30;47m"));
             y += 2;
-            x = 0;
+            x = 2;
             render_text(&x, y, msg);
+            y += 2;
+            x = 2;
+            render_text(&x, y, ColorText("Hint: " + tmp + '_', ""));
             y++;
-            for (size_t i = 0; i < _select_list.size(); i++) {
+            if (arrow) {
+                for (size_t i = 0; i < (_select_list.size() > size().y - 9 ? size().y - 9 : _select_list.size()); i++) {
                     x = 0;
-                    render_text(&x, ++y, ColorText((sel == i ? "->" + std::to_string(i) : "  " + std::to_string(i)) + ": " + _select_list[i] , sel == i ? "\x1b[30;47m" : ""));
+                    if (!_show_num) {
+                        render_text(&x, ++y, ColorText((sel == i ? "->" : "  " )+ _select_list[i] , "\x1b[38;2;128;128;128m"));
+                    } else {
+                        render_text(&x, ++y, ColorText((sel == i ? "->" + std::to_string(i) : "  " + std::to_string(i)) + ": " + _select_list[i] , "\x1b[38;2;128;128;128m"));
+                    }
                 }
+                x = 0;
+                if (_select_list.size() > size().y - 9) {
+                    render_text(&x, ++y, ColorText("  ...and more", ""));
+                }
+
+            } else {
+                set = false;
+                size_t i = 0;
+                newl = {};
+                for (i = 0; i < (_select_list.size() > size().y - 9 ? size().y - 9 : _select_list.size()); i++) {
+                    x = 0;
+                    if (std::all_of(tmp.cbegin(), tmp.cend(), [&_select_list, i, this](const char& c) -> bool {std::string x = to_lowercase(_select_list[i]); return std::find(x.cbegin(), x.cend(), std::tolower(c)) != x.cend();})) {
+                        newl.push_back(_select_list[i]);
+                    }
+                }
+
+                for (i = 0; i < (newl.size() > size().y - 9 ? size().y - 9 : newl.size()); i++) {
+                    x = 0;
+                    if (!set) sel = i;
+                    set = true;
+                    if (!_show_num) {
+                        render_text(&x, ++y, ColorText((sel == i ? "->" : "  ") + newl[i] , "\x1b[38;2;128;128;128m"));
+                    } else {
+                        render_text(&x, ++y, ColorText((sel == i ? "->" : "  ") + newl[i] , "\x1b[38;2;128;128;128m"));
+                    }
+                }
+
+                x = 0;
+                if (newl.size() > size().y - 9) {
+                        render_text(&x, ++y, ColorText("  ...and more", ""));
+                }                
+            }
             x = 0;
             render_text(&x, size().y - 1, _prompt);
             update();
@@ -341,30 +390,43 @@ typedef struct SelectUI {
             if (g == 224) {
                 switch (_getch()) {
                     case 72: {
+                        arrow = true;
 						if (sel > 0) {
 							sel--;
 						} else {
 							sel = _select_list.size() - 1;
 						}
+                        tmp = newl[sel];
 						break;
 					}
 
 					case 80: {
+                        arrow = true;
 						if (sel < _select_list.size() - 1) {
 							sel++;
 						} else {
 							sel = 0;
 						}
+                        tmp = newl[sel];
 						break;
 					}
                 }
             } else if (g == '\r'){
                 return sel;
-            } else if (g == 'c' || g == 'C' || g == '\x1b') {
+            } else if (g == '\x1b') {
                 return INT32_MIN;
-        }
+            } else if (g == '\b') {
+                arrow = true;
+                tmp = tmp.substr(0, tmp.size() - 1);
+            } else {
+                if (arrow) tmp = "";
+                arrow = false;
+                tmp += g;
+            }
     }
-   }
+    }
+
+
     explicit SelectUI(Screen *screen) : screen(screen) {}
 private:
     
